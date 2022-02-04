@@ -7,7 +7,8 @@ pub enum MspDebugError {
     SpawnError(io::Error),
     StreamError(&'static str),
     ReadError(io::Error),
-    UnexpectedShellMessage(&'static str, String),
+    UnexpectedSigil(char),
+    UnexpectedShellMessage(String),
 }
 
 impl fmt::Display for MspDebugError {
@@ -18,8 +19,15 @@ impl fmt::Display for MspDebugError {
                 write!(f, "could not open mspdebug stream {}", stream)
             }
             MspDebugError::ReadError(_) => write!(f, "error reading mspdebug stdout"),
-            MspDebugError::UnexpectedShellMessage(exp, act) => {
-                write!(f, "unexpected shell message, expected {}, got {}", exp, act)
+            MspDebugError::UnexpectedSigil(sigil) => {
+                write!(
+                    f,
+                    "unexpected sigil, expected :, -, !, or \\, got {}",
+                    sigil
+                )
+            }
+            MspDebugError::UnexpectedShellMessage(msg) => {
+                write!(f, "unexpected shell message, expected 'ready', 'busy', 'power-sample-us', or 'power-samples', got {}", msg)
             }
         }
     }
@@ -29,7 +37,9 @@ impl error::Error for MspDebugError {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match self {
             MspDebugError::SpawnError(io) | MspDebugError::ReadError(io) => Some(io),
-            MspDebugError::StreamError(_) | MspDebugError::UnexpectedShellMessage(_, _) => None,
+            MspDebugError::StreamError(_)
+            | MspDebugError::UnexpectedSigil(_)
+            | MspDebugError::UnexpectedShellMessage(_) => None,
         }
     }
 }

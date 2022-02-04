@@ -1,6 +1,6 @@
 use std::convert::AsRef;
-use std::io::{self, BufRead};
-use std::process::{ChildStdin, ChildStdout, Command, Stdio};
+use std::io;
+use std::process::{Command, Stdio};
 
 use strum_macros::AsRefStr;
 
