@@ -3,7 +3,7 @@ use std::fmt;
 use std::io;
 
 #[derive(Debug)]
-pub enum MspDebugError {
+pub enum Error {
     SpawnError(io::Error),
     StreamError(&'static str),
     ReadError(io::Error),
@@ -13,42 +13,42 @@ pub enum MspDebugError {
     CommsError(String),
 }
 
-impl fmt::Display for MspDebugError {
+impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            MspDebugError::SpawnError(_) => write!(f, "error spawning mspdebug"),
-            MspDebugError::StreamError(stream) => {
+            Error::SpawnError(_) => write!(f, "error spawning mspdebug"),
+            Error::StreamError(stream) => {
                 write!(f, "could not open mspdebug stream {}", stream)
             }
-            MspDebugError::ReadError(_) => write!(f, "error reading mspdebug stdout"),
-            MspDebugError::WriteError(_) => write!(f, "error writing mspdebug stdin"),
-            MspDebugError::UnexpectedSigil(sigil) => {
+            Error::ReadError(_) => write!(f, "error reading mspdebug stdout"),
+            Error::WriteError(_) => write!(f, "error writing mspdebug stdin"),
+            Error::UnexpectedSigil(sigil) => {
                 write!(
                     f,
                     "unexpected sigil, expected :, -, !, or \\, got {}",
                     sigil
                 )
             }
-            MspDebugError::UnexpectedShellMessage(msg) => {
+            Error::UnexpectedShellMessage(msg) => {
                 write!(f, "unexpected shell message, expected 'ready', 'busy', 'power-sample-us', or 'power-samples', got {}", msg)
             }
-            MspDebugError::CommsError(msg) => {
+            Error::CommsError(msg) => {
                 write!(f, "mspdebug could not communicate with the device {}", msg)
             }
         }
     }
 }
 
-impl error::Error for MspDebugError {
+impl error::Error for Error {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match self {
-            MspDebugError::SpawnError(io)
-            | MspDebugError::ReadError(io)
-            | MspDebugError::WriteError(io) => Some(io),
-            MspDebugError::StreamError(_)
-            | MspDebugError::UnexpectedSigil(_)
-            | MspDebugError::UnexpectedShellMessage(_)
-            | MspDebugError::CommsError(_) => None,
+            Error::SpawnError(io)
+            | Error::ReadError(io)
+            | Error::WriteError(io) => Some(io),
+            Error::StreamError(_)
+            | Error::UnexpectedSigil(_)
+            | Error::UnexpectedShellMessage(_)
+            | Error::CommsError(_) => None,
         }
     }
 }

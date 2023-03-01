@@ -4,10 +4,10 @@ use std::process::{Command, Stdio};
 
 use strum_macros::AsRefStr;
 
-use super::{MspDebugDriver, MspDebugError};
+use super::{MspDebug, Error};
 
 #[derive(AsRefStr)]
-pub enum Driver {
+pub enum TargetDriver {
     #[strum(serialize = "rf2500")]
     Rf2500,
     #[strum(serialize = "sim")]
@@ -16,30 +16,30 @@ pub enum Driver {
     Tilib,
 }
 
-pub struct MspDebugCfg {
-    driver: Driver,
+pub struct Cfg {
+    driver: TargetDriver,
     quiet: bool,
 }
 
-impl MspDebugCfg {
+impl Cfg {
     pub fn new() -> Self {
-        MspDebugCfg {
-            driver: Driver::Sim,
+        Cfg {
+            driver: TargetDriver::Sim,
             quiet: true,
         }
     }
 
-    pub fn driver(self, driver: Driver) -> MspDebugCfg {
-        MspDebugCfg { driver, ..self }
+    pub fn driver(self, driver: TargetDriver) -> Cfg {
+        Cfg { driver, ..self }
     }
 
     // Not part of public API for now. For testing.
     #[allow(unused)]
-    fn quiet(self, quiet: bool) -> MspDebugCfg {
-        MspDebugCfg { quiet, ..self }
+    fn quiet(self, quiet: bool) -> Cfg {
+        Cfg { quiet, ..self }
     }
 
-    pub fn run(self) -> Result<MspDebugDriver, MspDebugError> {
+    pub fn run(self) -> Result<MspDebug, Error> {
         let mut cmd = Command::new("mspdebug");
 
         cmd.args(["--embedded", self.driver.as_ref()]);
@@ -53,20 +53,20 @@ impl MspDebugCfg {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()
-            .map_err(MspDebugError::SpawnError)?;
+            .map_err(Error::SpawnError)?;
 
         let stdin = child
             .stdin
             .take()
-            .ok_or(MspDebugError::StreamError("stdin"))?;
+            .ok_or(Error::StreamError("stdin"))?;
         let stdout = io::BufReader::new(
             child
                 .stdout
                 .take()
-                .ok_or(MspDebugError::StreamError("stdout"))?,
+                .ok_or(Error::StreamError("stdout"))?,
         );
 
-        Ok(MspDebugDriver {
+        Ok(MspDebug {
             stdin,
             stdout,
             cfg: self,

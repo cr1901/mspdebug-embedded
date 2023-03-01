@@ -4,7 +4,7 @@ use std::process::{ChildStdin, ChildStdout};
 
 use io::Write as _;
 
-use super::{MspDebugCfg, MspDebugError};
+use super::{Cfg, Error};
 
 enum OutputType<'a> {
     Normal(&'a str),
@@ -31,20 +31,20 @@ enum WaitMode {
     Busy
 }
 
-pub struct MspDebugDriver {
+pub struct MspDebug {
     pub(crate) stdin: ChildStdin,
     pub(crate) stdout: io::BufReader<ChildStdout>,
     #[allow(unused)]
-    pub(crate) cfg: MspDebugCfg,
+    pub(crate) cfg: Cfg,
     pub(crate) last_shelltype: Option<ShellType>
 }
 
-impl MspDebugDriver {
-    fn get_line<'a>(&mut self, line: &'a mut String) -> Result<OutputType<'a>, MspDebugError> {
+impl MspDebug {
+    fn get_line<'a>(&mut self, line: &'a mut String) -> Result<OutputType<'a>, Error> {
         loop {
             self.stdout
                 .read_line(line)
-                .map_err(MspDebugError::ReadError)?;
+                .map_err(Error::ReadError)?;
 
             match line.chars().nth(0) {
                 Some(':') => return Ok(OutputType::Normal(&line[1..])),
@@ -56,7 +56,7 @@ impl MspDebugDriver {
                     return Ok(OutputType::Shell(self.get_shell_type(&line[1..])?));
                 }
                 Some(un) => {
-                    return Err(MspDebugError::UnexpectedSigil(un));
+                    return Err(Error::UnexpectedSigil(un));
                 }
                 None => unreachable!(),
             }
@@ -70,7 +70,7 @@ impl MspDebugDriver {
         }
     }
 
-    fn get_shell_type(&self, line: &str) -> Result<ShellType, MspDebugError> {
+    fn get_shell_type(&self, line: &str) -> Result<ShellType, Error> {
         match line {
             line if line.eq("ready\n") || line.eq("ready\r\n") => Ok(ShellType::Ready),
             line if line.eq("busy\n") || line.eq("busy\r\n") => Ok(ShellType::Busy),
@@ -80,19 +80,19 @@ impl MspDebugDriver {
             line if line.eq("power-samples\n") || line.eq("power-samples\r\n") => {
                 Ok(ShellType::PowerSamples)
             }
-            line => Err(MspDebugError::UnexpectedShellMessage(line.to_owned())),
+            line => Err(Error::UnexpectedShellMessage(line.to_owned())),
         }
     }
 
-    pub fn wait_for_ready(&mut self) -> Result<(), MspDebugError> {
+    pub fn wait_for_ready(&mut self) -> Result<(), Error> {
         self.wait_for_ready_or_busy(WaitMode::Ready)
     }
 
-    pub fn wait_for_busy(&mut self) -> Result<(), MspDebugError> {
+    pub fn wait_for_busy(&mut self) -> Result<(), Error> {
         self.wait_for_ready_or_busy(WaitMode::Busy)
     }
 
-    fn wait_for_ready_or_busy(&mut self, mode: WaitMode) -> Result<(), MspDebugError> {
+    fn wait_for_ready_or_busy(&mut self, mode: WaitMode) -> Result<(), Error> {
         // Every command in this driver waits for ready at the beginning and
         // end. Cache the value of ShellType, so we know what the last line was.
         match self.last_shelltype {
@@ -123,7 +123,7 @@ impl MspDebugDriver {
                         || e.starts_with("fet: command C_IDENT1 failed")
                         || e.starts_with("fet: FET returned NAK") => {}
                     e => {
-                        return Err(MspDebugError::CommsError(e.into()));
+                        return Err(Error::CommsError(e.into()));
                     }
                 },
                 _ => {}
@@ -133,14 +133,14 @@ impl MspDebugDriver {
         }
     }
 
-    pub fn program<F>(&mut self, filename: F) -> Result<(), MspDebugError>
+    pub fn program<F>(&mut self, filename: F) -> Result<(), Error>
     where
         F: Into<PathBuf>,
     {
         let filename = filename.into();
 
         self.wait_for_ready()?;
-        write!(self, ":prog {}\n", filename.display()).map_err(|e| MspDebugError::WriteError(e))?;
+        write!(self, ":prog {}\n", filename.display()).map_err(|e| Error::WriteError(e))?;
         self.wait_for_busy()?;
         self.wait_for_ready()?;
 
@@ -148,13 +148,13 @@ impl MspDebugDriver {
     }
 }
 
-impl io::Read for MspDebugDriver {
+impl io::Read for MspDebug {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.stdout.read(buf)
     }
 }
 
-impl io::Write for MspDebugDriver {
+impl io::Write for MspDebug {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.stdin.write(buf)
     }

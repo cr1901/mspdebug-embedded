@@ -2,21 +2,20 @@ mod cfg;
 mod driver;
 mod error;
 
-pub use cfg::MspDebugCfg;
-pub use driver::MspDebugDriver;
-pub use error::MspDebugError;
+pub use cfg::{Cfg, TargetDriver};
+pub(crate) use driver::MspDebug;
+pub use error::Error;
 
 #[cfg(test)]
 mod tests {
-    use super::cfg;
-    use super::MspDebugCfg;
+    use super::{Cfg, TargetDriver};
     use serial_test::serial;
 
     // Tests assume mspdebug is on the path.
     #[test]
     #[serial]
     fn test_spawn() {
-        let mspdebug = MspDebugCfg::new().run();
+        let mspdebug = Cfg::new().run();
 
         assert!(mspdebug.is_ok(), "mspdebug did not spawn: {:?}", unsafe {
             mspdebug.unwrap_err_unchecked()
@@ -26,7 +25,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_ready() {
-        let mut mspdebug = MspDebugCfg::new().run().unwrap();
+        let mut mspdebug = Cfg::new().run().unwrap();
 
         let cmd = mspdebug.wait_for_ready();
         assert!(
@@ -43,8 +42,8 @@ mod tests {
         #[test]
         #[serial]
         fn test_open() {
-            let mut mspdebug = MspDebugCfg::new()
-                .driver(cfg::Driver::Rf2500)
+            let mut mspdebug = Cfg::new()
+                .driver(TargetDriver::Rf2500)
                 .run()
                 .unwrap();
 
@@ -59,8 +58,8 @@ mod tests {
         #[test]
         #[serial]
         fn test_prog() {
-            let mut mspdebug = MspDebugCfg::new()
-                .driver(cfg::Driver::Rf2500)
+            let mut mspdebug = Cfg::new()
+                .driver(TargetDriver::Rf2500)
                 .run()
                 .unwrap();
 
