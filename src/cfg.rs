@@ -2,11 +2,14 @@ use std::convert::AsRef;
 use std::io;
 use std::process::{Command, Stdio};
 
+#[cfg(feature = "msprun")]
+use clap::ValueEnum;
 use strum_macros::AsRefStr;
 
 use super::{MspDebug, Error};
 
-#[derive(AsRefStr)]
+#[derive(Clone, Copy, AsRefStr)]
+#[cfg_attr(feature = "msprun", derive(ValueEnum))]
 pub enum TargetDriver {
     #[strum(serialize = "rf2500")]
     Rf2500,

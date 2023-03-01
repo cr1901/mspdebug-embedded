@@ -8,7 +8,7 @@ use mspdebug_embedded::*;
 #[clap(author, version)]
 /// "cargo run"-friendly driver program for mspdebug.
 pub struct Args {
-    pub driver: Cfg::TargetDriver,
+    pub driver: TargetDriver,
     #[clap(subcommand)]
     pub cmd: Cmd,
 }
@@ -21,6 +21,15 @@ pub enum Cmd {
     },
 }
 
-fn main() {
-    
+fn main() -> Result<()> {
+    let args = Args::parse();
+
+    match args.cmd {
+        Cmd::Prog { filename } => {
+            let mut msp = Cfg::new().driver(args.driver).run()?;
+            msp.program(filename)?;
+        }
+    }
+
+    Ok(())
 }

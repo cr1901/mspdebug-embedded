@@ -10,7 +10,7 @@ name = "msprun"
 required-features = ["msprun"]
 
 [dependencies]
-clap = { version = "4.1.8", optional = true }
+clap = { version = "4.1.8", optional = true, features = ["derive"] }
 eyre = { version = "0.6.8", optional = true }
 strum = "0.23"
 strum_macros = "0.23"
