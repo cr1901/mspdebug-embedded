@@ -8,8 +8,8 @@ pub use error::MspDebugError;
 
 #[cfg(test)]
 mod tests {
-    use super::MspDebugCfg;
     use super::cfg;
+    use super::MspDebugCfg;
     use serial_test::serial;
 
     // Tests assume mspdebug is on the path.
@@ -43,8 +43,11 @@ mod tests {
         #[test]
         #[serial]
         fn test_open() {
-            let mut mspdebug = MspDebugCfg::new().driver(cfg::Driver::Rf2500).run().unwrap();
-    
+            let mut mspdebug = MspDebugCfg::new()
+                .driver(cfg::Driver::Rf2500)
+                .run()
+                .unwrap();
+
             let cmd = mspdebug.wait_for_ready();
             assert!(
                 cmd.is_ok(),
@@ -56,9 +59,15 @@ mod tests {
         #[test]
         #[serial]
         fn test_prog() {
-            let mut mspdebug = MspDebugCfg::new().driver(cfg::Driver::Rf2500).run().unwrap();
-    
-            let cmd = mspdebug.program(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/blinky-g2553.elf"));
+            let mut mspdebug = MspDebugCfg::new()
+                .driver(cfg::Driver::Rf2500)
+                .run()
+                .unwrap();
+
+            let cmd = mspdebug.program(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/assets/blinky-g2553.elf"
+            ));
             assert!(
                 cmd.is_ok(),
                 "mspdebug could not program ELF file: {:?}",
@@ -66,5 +75,4 @@ mod tests {
             );
         }
     }
-
 }

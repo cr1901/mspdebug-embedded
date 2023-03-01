@@ -10,7 +10,7 @@ pub enum MspDebugError {
     WriteError(io::Error),
     UnexpectedSigil(char),
     UnexpectedShellMessage(String),
-    CommsError(String)
+    CommsError(String),
 }
 
 impl fmt::Display for MspDebugError {
@@ -42,7 +42,9 @@ impl fmt::Display for MspDebugError {
 impl error::Error for MspDebugError {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match self {
-            MspDebugError::SpawnError(io) | MspDebugError::ReadError(io) | MspDebugError::WriteError(io) => Some(io),
+            MspDebugError::SpawnError(io)
+            | MspDebugError::ReadError(io)
+            | MspDebugError::WriteError(io) => Some(io),
             MspDebugError::StreamError(_)
             | MspDebugError::UnexpectedSigil(_)
             | MspDebugError::UnexpectedShellMessage(_)

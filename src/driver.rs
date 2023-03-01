@@ -83,18 +83,16 @@ impl MspDebugDriver {
             match self.get_line(&mut line)? {
                 OutputType::Shell(s) => match s {
                     ShellType::Ready => return Ok(()),
-                    ShellType::Busy => {},
+                    ShellType::Busy => {}
                     stype => unimplemented!(),
                 },
-                OutputType::Error(ErrorSeverity::Warning(_w)) => { /* todo!() */ },
-                OutputType::Error(ErrorSeverity::Error(e)) => {
-                    match e {
-                        e if e.starts_with("fet: FET returned error code") ||
-                        e.starts_with("fet: command C_IDENT1 failed") ||
-                        e.starts_with("fet: FET returned NAK") => {},
-                        e => return Err(MspDebugError::CommsError(e.into()))
-                    }
-                }
+                OutputType::Error(ErrorSeverity::Warning(_w)) => { /* todo!() */ }
+                OutputType::Error(ErrorSeverity::Error(e)) => match e {
+                    e if e.starts_with("fet: FET returned error code")
+                        || e.starts_with("fet: command C_IDENT1 failed")
+                        || e.starts_with("fet: FET returned NAK") => {}
+                    e => return Err(MspDebugError::CommsError(e.into())),
+                },
                 _ => {}
             }
 
@@ -102,7 +100,10 @@ impl MspDebugDriver {
         }
     }
 
-    pub fn program<F>(&mut self, filename: F) -> Result<(), MspDebugError> where F: Into<PathBuf> {
+    pub fn program<F>(&mut self, filename: F) -> Result<(), MspDebugError>
+    where
+        F: Into<PathBuf>,
+    {
         let filename = filename.into();
 
         self.wait_for_ready()?;
