@@ -34,6 +34,7 @@ impl MspDebugCfg {
     }
 
     // Not part of public API for now. For testing.
+    #[allow(unused)]
     fn quiet(self, quiet: bool) -> MspDebugCfg {
         MspDebugCfg { quiet, ..self }
     }
@@ -69,6 +70,7 @@ impl MspDebugCfg {
             stdin,
             stdout,
             cfg: self,
+            last_shelltype: None
         })
     }
 }

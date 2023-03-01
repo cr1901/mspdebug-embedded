@@ -18,17 +18,25 @@ enum ErrorSeverity<'a> {
     Error(&'a str),
 }
 
-enum ShellType {
+pub(crate) enum ShellType {
     Ready,
     Busy,
     PowerSampleUs,
     PowerSamples,
 }
 
+#[derive(PartialEq)]
+enum WaitMode {
+    Ready,
+    Busy
+}
+
 pub struct MspDebugDriver {
     pub(crate) stdin: ChildStdin,
     pub(crate) stdout: io::BufReader<ChildStdout>,
+    #[allow(unused)]
     pub(crate) cfg: MspDebugCfg,
+    pub(crate) last_shelltype: Option<ShellType>
 }
 
 impl MspDebugDriver {
@@ -77,21 +85,46 @@ impl MspDebugDriver {
     }
 
     pub fn wait_for_ready(&mut self) -> Result<(), MspDebugError> {
+        self.wait_for_ready_or_busy(WaitMode::Ready)
+    }
+
+    pub fn wait_for_busy(&mut self) -> Result<(), MspDebugError> {
+        self.wait_for_ready_or_busy(WaitMode::Busy)
+    }
+
+    fn wait_for_ready_or_busy(&mut self, mode: WaitMode) -> Result<(), MspDebugError> {
+        // Every command in this driver waits for ready at the beginning and
+        // end. Cache the value of ShellType, so we know what the last line was.
+        match self.last_shelltype {
+            Some(ShellType::Ready) if mode == WaitMode::Ready => { return Ok(())},
+            Some(ShellType::Busy) if mode == WaitMode::Busy => { return Ok(()) },
+            _ => {},
+        }
+
         let mut line = String::new();
 
         loop {
+            self.last_shelltype = None;
             match self.get_line(&mut line)? {
                 OutputType::Shell(s) => match s {
-                    ShellType::Ready => return Ok(()),
-                    ShellType::Busy => {}
-                    stype => unimplemented!(),
+                    ShellType::Ready if mode == WaitMode::Ready => { 
+                        self.last_shelltype = Some(ShellType::Ready);
+                        return Ok(());
+                    },
+                    ShellType::Busy if mode == WaitMode::Busy => {
+                        self.last_shelltype = Some(ShellType::Busy);
+                        return Ok(());
+                    }
+                    _stype => {},
                 },
                 OutputType::Error(ErrorSeverity::Warning(_w)) => { /* todo!() */ }
                 OutputType::Error(ErrorSeverity::Error(e)) => match e {
                     e if e.starts_with("fet: FET returned error code")
                         || e.starts_with("fet: command C_IDENT1 failed")
                         || e.starts_with("fet: FET returned NAK") => {}
-                    e => return Err(MspDebugError::CommsError(e.into())),
+                    e => {
+                        return Err(MspDebugError::CommsError(e.into()));
+                    }
                 },
                 _ => {}
             }
@@ -107,7 +140,9 @@ impl MspDebugDriver {
         let filename = filename.into();
 
         self.wait_for_ready()?;
-        write!(self, ":prog {}", filename.display()).map_err(|e| MspDebugError::WriteError(e))?;
+        write!(self, ":prog {}\n", filename.display()).map_err(|e| MspDebugError::WriteError(e))?;
+        self.wait_for_busy()?;
+        self.wait_for_ready()?;
 
         Ok(())
     }

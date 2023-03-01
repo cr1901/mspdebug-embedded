@@ -73,6 +73,17 @@ mod tests {
                 "mspdebug could not program ELF file: {:?}",
                 cmd.unwrap_err()
             );
+
+            // Program it twice so that we confirm synchronization is working.
+            let cmd = mspdebug.program(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/assets/blinky-g2553.elf"
+            ));
+            assert!(
+                cmd.is_ok(),
+                "mspdebug could not program ELF file: {:?}",
+                cmd.unwrap_err()
+            );
         }
     }
 }
