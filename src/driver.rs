@@ -1,5 +1,8 @@
 use std::io::{self, BufRead};
+use std::path::PathBuf;
 use std::process::{ChildStdin, ChildStdout};
+
+use io::Write as _;
 
 use super::{MspDebugCfg, MspDebugError};
 
@@ -54,7 +57,7 @@ impl MspDebugDriver {
 
     fn get_error_severity<'a>(&self, line: &'a str) -> ErrorSeverity<'a> {
         match line {
-            line if line.eq("warning") => ErrorSeverity::Warning(line),
+            line if line.starts_with("warning") => ErrorSeverity::Warning(line),
             line => ErrorSeverity::Error(line),
         }
     }
@@ -80,13 +83,32 @@ impl MspDebugDriver {
             match self.get_line(&mut line)? {
                 OutputType::Shell(s) => match s {
                     ShellType::Ready => return Ok(()),
+                    ShellType::Busy => {},
                     stype => unimplemented!(),
                 },
+                OutputType::Error(ErrorSeverity::Warning(_w)) => { /* todo!() */ },
+                OutputType::Error(ErrorSeverity::Error(e)) => {
+                    match e {
+                        e if e.starts_with("fet: FET returned error code") ||
+                        e.starts_with("fet: command C_IDENT1 failed") ||
+                        e.starts_with("fet: FET returned NAK") => {},
+                        e => return Err(MspDebugError::CommsError(e.into()))
+                    }
+                }
                 _ => {}
             }
 
             line.clear();
         }
+    }
+
+    pub fn program<F>(&mut self, filename: F) -> Result<(), MspDebugError> where F: Into<PathBuf> {
+        let filename = filename.into();
+
+        self.wait_for_ready()?;
+        write!(self, ":prog {}", filename.display()).map_err(|e| MspDebugError::WriteError(e))?;
+
+        Ok(())
     }
 }
 

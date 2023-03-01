@@ -7,8 +7,10 @@ pub enum MspDebugError {
     SpawnError(io::Error),
     StreamError(&'static str),
     ReadError(io::Error),
+    WriteError(io::Error),
     UnexpectedSigil(char),
     UnexpectedShellMessage(String),
+    CommsError(String)
 }
 
 impl fmt::Display for MspDebugError {
@@ -19,6 +21,7 @@ impl fmt::Display for MspDebugError {
                 write!(f, "could not open mspdebug stream {}", stream)
             }
             MspDebugError::ReadError(_) => write!(f, "error reading mspdebug stdout"),
+            MspDebugError::WriteError(_) => write!(f, "error writing mspdebug stdin"),
             MspDebugError::UnexpectedSigil(sigil) => {
                 write!(
                     f,
@@ -29,6 +32,9 @@ impl fmt::Display for MspDebugError {
             MspDebugError::UnexpectedShellMessage(msg) => {
                 write!(f, "unexpected shell message, expected 'ready', 'busy', 'power-sample-us', or 'power-samples', got {}", msg)
             }
+            MspDebugError::CommsError(msg) => {
+                write!(f, "mspdebug could not communicate with the device {}", msg)
+            }
         }
     }
 }
@@ -36,10 +42,11 @@ impl fmt::Display for MspDebugError {
 impl error::Error for MspDebugError {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match self {
-            MspDebugError::SpawnError(io) | MspDebugError::ReadError(io) => Some(io),
+            MspDebugError::SpawnError(io) | MspDebugError::ReadError(io) | MspDebugError::WriteError(io) => Some(io),
             MspDebugError::StreamError(_)
             | MspDebugError::UnexpectedSigil(_)
-            | MspDebugError::UnexpectedShellMessage(_) => None,
+            | MspDebugError::UnexpectedShellMessage(_)
+            | MspDebugError::CommsError(_) => None,
         }
     }
 }
