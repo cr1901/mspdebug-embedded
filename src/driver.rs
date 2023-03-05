@@ -1,6 +1,6 @@
 use std::io::{self, BufRead};
 use std::path::PathBuf;
-use std::process::{ChildStdin, ChildStdout};
+use std::process::{ChildStdin, ChildStdout, Command, ExitStatus};
 
 use io::Write as _;
 
@@ -28,7 +28,7 @@ pub(crate) enum ShellType {
 #[derive(PartialEq)]
 enum WaitMode {
     Ready,
-    Busy
+    Busy,
 }
 
 pub struct MspDebug {
@@ -36,15 +36,13 @@ pub struct MspDebug {
     pub(crate) stdout: io::BufReader<ChildStdout>,
     #[allow(unused)]
     pub(crate) cfg: Cfg,
-    pub(crate) last_shelltype: Option<ShellType>
+    pub(crate) last_shelltype: Option<ShellType>,
 }
 
 impl MspDebug {
     fn get_line<'a>(&mut self, line: &'a mut String) -> Result<OutputType<'a>, Error> {
         loop {
-            self.stdout
-                .read_line(line)
-                .map_err(Error::ReadError)?;
+            self.stdout.read_line(line).map_err(Error::ReadError)?;
 
             match line.chars().nth(0) {
                 Some(':') => return Ok(OutputType::Normal(&line[1..])),
@@ -96,9 +94,9 @@ impl MspDebug {
         // Every command in this driver waits for ready at the beginning and
         // end. Cache the value of ShellType, so we know what the last line was.
         match self.last_shelltype {
-            Some(ShellType::Ready) if mode == WaitMode::Ready => { return Ok(())},
-            Some(ShellType::Busy) if mode == WaitMode::Busy => { return Ok(()) },
-            _ => {},
+            Some(ShellType::Ready) if mode == WaitMode::Ready => return Ok(()),
+            Some(ShellType::Busy) if mode == WaitMode::Busy => return Ok(()),
+            _ => {}
         }
 
         let mut line = String::new();
@@ -107,15 +105,15 @@ impl MspDebug {
             self.last_shelltype = None;
             match self.get_line(&mut line)? {
                 OutputType::Shell(s) => match s {
-                    ShellType::Ready if mode == WaitMode::Ready => { 
+                    ShellType::Ready if mode == WaitMode::Ready => {
                         self.last_shelltype = Some(ShellType::Ready);
                         return Ok(());
-                    },
+                    }
                     ShellType::Busy if mode == WaitMode::Busy => {
                         self.last_shelltype = Some(ShellType::Busy);
                         return Ok(());
                     }
-                    _stype => {},
+                    _stype => {}
                 },
                 OutputType::Error(ErrorSeverity::Warning(_w)) => { /* todo!() */ }
                 OutputType::Error(ErrorSeverity::Error(e)) => match e {
@@ -145,6 +143,51 @@ impl MspDebug {
         self.wait_for_ready()?;
 
         Ok(())
+    }
+
+    /** Run `mspdebug` in `gdb` server mode and spawn a `msp430-elf-gdb` session.
+     
+    Powershell equivalent:
+
+    ```ignore
+    { $null | mspdebug -q --embedded [driver] gdb > $null } > $null;  msp430-elf-gdb -q -ex "target remote localhost:2000" -ex "monitor erase" -ex "load" -ex "monitor reset" /path/to/elf
+    ```
+    */
+    pub fn gdb<F>(mut self, filename: F) -> Result<ExitStatus, Error>
+    where
+        F: Into<PathBuf>,
+    {
+        let filename = filename.into();
+
+        ctrlc::set_handler(move || {}).map_err(|e| Error::CtrlCError(e))?;
+        self.wait_for_ready()?;
+        write!(self, ":gdb\n").map_err(|e| Error::WriteError(e))?;
+        self.wait_for_busy()?;
+
+        let fn_string = filename.to_string_lossy();
+        let args = vec![
+            "-q",
+            "-ex",
+            "target remote localhost:2000",
+            "-ex",
+            "monitor erase",
+            "-ex",
+            "monitor erase segrange 0x1000 192 64",
+            "-ex",
+            "load",
+            "-ex",
+            "monitor reset",
+            &fn_string,
+        ];
+
+        let exit = Command::new("msp430-elf-gdb")
+            .args(&args)
+            .spawn()
+            .map_err(|e| Error::SpawnError(e))?
+            .wait()
+            .map_err(|e| Error::GdbError(e))?;
+
+        Ok(exit)
     }
 }
 

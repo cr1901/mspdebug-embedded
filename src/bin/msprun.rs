@@ -1,4 +1,7 @@
 use std::path::PathBuf;
+use std::process::{Command, Stdio};
+use std::io::Write;
+use std::time::Duration;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use eyre::Result;
@@ -19,6 +22,10 @@ pub enum Cmd {
     Prog {
         filename: PathBuf
     },
+    /// Use mspdebug to create a `gdb` server; spawn an interactive `msp430-elf-gdb` session.
+    Gdb {
+        filename: PathBuf
+    }
 }
 
 fn main() -> Result<()> {
@@ -28,6 +35,10 @@ fn main() -> Result<()> {
         Cmd::Prog { filename } => {
             let mut msp = Cfg::new().driver(args.driver).run()?;
             msp.program(filename)?;
+        },
+        Cmd::Gdb { filename } => {
+            let mut msp = Cfg::new().driver(args.driver).run()?;
+            msp.gdb(filename)?;
         }
     }
 

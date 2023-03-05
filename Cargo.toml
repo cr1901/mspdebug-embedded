@@ -11,6 +11,7 @@ required-features = ["msprun"]
 
 [dependencies]
 clap = { version = "4.1.8", optional = true, features = ["derive"] }
+ctrlc = "3.2.5"
 eyre = { version = "0.6.8", optional = true }
 strum = "0.23"
 strum_macros = "0.23"
