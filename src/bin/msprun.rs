@@ -1,9 +1,6 @@
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
-use std::io::Write;
-use std::time::Duration;
 
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Parser, Subcommand};
 use eyre::Result;
 use mspdebug_embedded::*;
 
@@ -14,6 +11,8 @@ pub struct Args {
     pub driver: TargetDriver,
     #[clap(subcommand)]
     pub cmd: Cmd,
+    #[arg(short = 'b')]
+    pub binary: Option<PathBuf>
 }
 
 #[derive(Subcommand)]
@@ -31,13 +30,18 @@ pub enum Cmd {
 fn main() -> Result<()> {
     let args = Args::parse();
 
+    let mut cfg = Cfg::new();
+    if let Some(b) = args.binary {
+        cfg = cfg.binary(b);
+    }
+
     match args.cmd {
         Cmd::Prog { filename } => {
-            let mut msp = Cfg::new().driver(args.driver).run()?;
+            let mut msp = cfg.driver(args.driver).run()?;
             msp.program(filename)?;
         },
         Cmd::Gdb { filename } => {
-            let mut msp = Cfg::new().driver(args.driver).run()?;
+            let msp = cfg.driver(args.driver).run()?;
             msp.gdb(filename)?;
         }
     }

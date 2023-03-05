@@ -1,5 +1,6 @@
 use std::convert::AsRef;
 use std::io;
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 #[cfg(feature = "msprun")]
@@ -20,6 +21,7 @@ pub enum TargetDriver {
 }
 
 pub struct Cfg {
+    binary: PathBuf,
     driver: TargetDriver,
     quiet: bool,
 }
@@ -27,9 +29,15 @@ pub struct Cfg {
 impl Cfg {
     pub fn new() -> Self {
         Cfg {
+            binary: "mspdebug".into(),
             driver: TargetDriver::Sim,
             quiet: true,
         }
+    }
+
+    pub fn binary<P>(self, binary: P) -> Cfg where P: Into<PathBuf> {
+        let binary = binary.into();
+        Cfg { binary, ..self }
     }
 
     pub fn driver(self, driver: TargetDriver) -> Cfg {
@@ -43,7 +51,7 @@ impl Cfg {
     }
 
     pub fn run(self) -> Result<MspDebug, Error> {
-        let mut cmd = Command::new("mspdebug");
+        let mut cmd = Command::new(self.binary.clone());
 
         cmd.args(["--embedded", self.driver.as_ref()]);
 
