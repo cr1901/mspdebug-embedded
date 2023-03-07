@@ -3,6 +3,11 @@ use std::io;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
+use command_group::CommandGroup;
+
+#[cfg(windows)]
+use winapi::um::winbase::CREATE_NEW_PROCESS_GROUP;
+
 #[cfg(feature = "msprun")]
 use clap::ValueEnum;
 use strum_macros::AsRefStr;
@@ -59,12 +64,20 @@ impl Cfg {
             cmd.arg("-q");
         }
 
-        let mut child = cmd
+        let mut child_cfg = cmd
             .stderr(Stdio::null())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .spawn()
-            .map_err(Error::SpawnError)?;
+            .group();
+
+        // Process groups and job objects are separate on Windows, but might
+        // as well use the command_group crate to abstract-away *nix.
+        #[cfg(windows)]
+        child_cfg.creation_flags(CREATE_NEW_PROCESS_GROUP);
+
+        let mut child = child_cfg.spawn()
+            .map_err(Error::SpawnError)?
+            .into_inner();
 
         let stdin = child
             .stdin
