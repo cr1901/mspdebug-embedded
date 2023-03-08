@@ -25,8 +25,14 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Error::SpawnError(_) => write!(f, "error spawning mspdebug"),
-            Error::ExpectedProcessGroup => write!(f, "expected child mspdebug to be in a separate process group, but it wasn't"),
-            Error::ExpectedNoProcessGroup => write!(f, "expected child mspdebug to be in same process group as parent, found separate"),
+            Error::ExpectedProcessGroup => write!(
+                f,
+                "expected child mspdebug to be in a separate process group, but it wasn't"
+            ),
+            Error::ExpectedNoProcessGroup => write!(
+                f,
+                "expected child mspdebug to be in same process group as parent, found separate"
+            ),
             Error::StreamError(stream) => {
                 write!(f, "could not open mspdebug stream {}", stream)
             }
@@ -46,7 +52,11 @@ impl fmt::Display for Error {
                 write!(f, "mspdebug could not communicate with the device {}", msg)
             }
             Error::CtrlCError(e) => {
-                write!(f, "mspdebug could not override the ctrl+C handler for gdb {}", e)
+                write!(
+                    f,
+                    "mspdebug could not override the ctrl+C handler for gdb {}",
+                    e
+                )
             }
             Error::GdbError(e) => {
                 write!(f, "child debugger exited unexpectedly {}", e)
@@ -77,7 +87,6 @@ impl error::Error for Error {
             | Error::CommsError(_)
             | Error::NoDevice
             | Error::UnknownDevice(_) => None,
-            
         }
     }
 }

@@ -6,7 +6,7 @@ use io::Write as _;
 
 use bitflags::bitflags;
 
-use super::{Cfg, Error, infomem::INFOMEM_MAP};
+use super::{infomem::INFOMEM_MAP, Cfg, Error};
 
 enum OutputType<'a> {
     Normal(&'a str),
@@ -264,10 +264,17 @@ impl MspDebug {
         let erase_infomem_str: String;
         if cfg.flags.contains(GdbConfigFlags::ERASE_INFOMEM) {
             let device = self.device.clone().ok_or(Error::NoDevice)?;
-            let (origin, mut length, sector_size) = INFOMEM_MAP.get(&device).cloned().flatten().ok_or(Error::UnknownDevice(device))?;
+            let (origin, mut length, sector_size) = INFOMEM_MAP
+                .get(&device)
+                .cloned()
+                .flatten()
+                .ok_or(Error::UnknownDevice(device))?;
 
             length -= sector_size; // Sector A, the last sector, may contain calibration info.
-            erase_infomem_str = format!("monitor erase segrange {} {} {}", origin, length, sector_size);
+            erase_infomem_str = format!(
+                "monitor erase segrange {} {} {}",
+                origin, length, sector_size
+            );
             args.extend(["-ex", &erase_infomem_str]);
         }
 

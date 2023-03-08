@@ -11,7 +11,7 @@ use winapi::um::winbase::CREATE_NEW_PROCESS_GROUP;
 use clap::ValueEnum;
 use strum_macros::AsRefStr;
 
-use super::{MspDebug, Error};
+use super::{Error, MspDebug};
 
 #[derive(Clone, Copy, AsRefStr)]
 #[cfg_attr(feature = "msprun", derive(ValueEnum))]
@@ -37,11 +37,14 @@ impl Cfg {
             binary: "mspdebug".into(),
             driver: TargetDriver::Sim,
             quiet: true,
-            group: false
+            group: false,
         }
     }
 
-    pub fn binary<P>(self, binary: P) -> Cfg where P: Into<PathBuf> {
+    pub fn binary<P>(self, binary: P) -> Cfg
+    where
+        P: Into<PathBuf>,
+    {
         let binary = binary.into();
         Cfg { binary, ..self }
     }
@@ -82,23 +85,16 @@ impl Cfg {
             #[cfg(windows)]
             child_group_cfg.creation_flags(CREATE_NEW_PROCESS_GROUP);
 
-            child_group_cfg.spawn()
-                           .map_err(Error::SpawnError)?
-                           .into_inner()
+            child_group_cfg
+                .spawn()
+                .map_err(Error::SpawnError)?
+                .into_inner()
         } else {
-            child_cfg.spawn()
-                     .map_err(Error::SpawnError)?
+            child_cfg.spawn().map_err(Error::SpawnError)?
         };
 
-        let stdin = child
-            .stdin
-            .take()
-            .ok_or(Error::StreamError("stdin"))?;
-        let stdout = 
-            child
-                .stdout
-                .take()
-                .ok_or(Error::StreamError("stdout"))?;
+        let stdin = child.stdin.take().ok_or(Error::StreamError("stdin"))?;
+        let stdout = child.stdout.take().ok_or(Error::StreamError("stdout"))?;
 
         Ok(MspDebug::new(child, stdin, stdout, self))
     }
