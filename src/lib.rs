@@ -1,6 +1,7 @@
 mod cfg;
 mod driver;
 mod error;
+mod infomem;
 
 pub use cfg::{Cfg, TargetDriver};
 pub use driver::GdbCfg;
@@ -43,10 +44,7 @@ mod tests {
         #[test]
         #[serial]
         fn test_open() {
-            let mut mspdebug = Cfg::new()
-                .driver(TargetDriver::Rf2500)
-                .run()
-                .unwrap();
+            let mut mspdebug = Cfg::new().driver(TargetDriver::Rf2500).run().unwrap();
 
             let cmd = mspdebug.wait_for_ready();
             assert!(
@@ -59,10 +57,7 @@ mod tests {
         #[test]
         #[serial]
         fn test_prog() {
-            let mut mspdebug = Cfg::new()
-                .driver(TargetDriver::Rf2500)
-                .run()
-                .unwrap();
+            let mut mspdebug = Cfg::new().driver(TargetDriver::Rf2500).run().unwrap();
 
             let cmd = mspdebug.program(concat!(
                 env!("CARGO_MANIFEST_DIR"),

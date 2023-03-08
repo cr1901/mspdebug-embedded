@@ -12,15 +12,13 @@ pub struct Args {
     #[clap(subcommand)]
     pub cmd: Cmd,
     #[arg(short = 'b')]
-    pub binary: Option<PathBuf>
+    pub binary: Option<PathBuf>,
 }
 
 #[derive(Subcommand)]
 pub enum Cmd {
     /// Program attached msp430 microcontroller with given ELF file.
-    Prog {
-        filename: PathBuf
-    },
+    Prog { filename: PathBuf },
     /// Use mspdebug to create a `gdb` server; spawn an interactive `msp430-elf-gdb` session.
     Gdb {
         filename: PathBuf,
@@ -28,7 +26,7 @@ pub enum Cmd {
         erase: bool,
         #[arg(short = 'x')]
         erase_extra: bool,
-    }
+    },
 }
 
 fn main() -> Result<()> {
@@ -43,17 +41,20 @@ fn main() -> Result<()> {
         Cmd::Prog { filename } => {
             let mut msp = cfg.driver(args.driver).run()?;
             msp.program(filename)?;
-        },
-        Cmd::Gdb { filename, erase, erase_extra } => {
+        }
+        Cmd::Gdb {
+            filename,
+            erase,
+            erase_extra,
+        } => {
             let msp = cfg.driver(args.driver).group(true).run()?;
 
             let cfg = match (erase, erase_extra) {
                 (true, false) => GdbCfg::default().erase_and_load(),
                 (_, true) => GdbCfg::default().erase_all_and_load(),
-                (_, _) => GdbCfg::default()
+                (_, _) => GdbCfg::default(),
             };
             msp.gdb(filename, cfg)?;
-            std::thread::sleep(std::time::Duration::from_millis(5000));
         }
     }
 

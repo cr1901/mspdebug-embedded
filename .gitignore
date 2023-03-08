@@ -1,2 +1,4 @@
 /target
 Cargo.lock
+/scripts/mspdebug.txt
+/scripts/mspheaders.txt

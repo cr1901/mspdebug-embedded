@@ -1,13 +1,12 @@
 use std::io::{self, BufRead};
 use std::path::PathBuf;
 use std::process::{Child, ChildStdin, ChildStdout, Command, ExitStatus};
-use std::thread;
 
 use io::Write as _;
 
 use bitflags::bitflags;
 
-use super::{Cfg, Error};
+use super::{Cfg, Error, infomem::INFOMEM_MAP};
 
 enum OutputType<'a> {
     Normal(&'a str),
@@ -35,13 +34,13 @@ enum WaitMode {
 }
 
 pub struct MspDebug {
-    pub(crate) stdin: ChildStdin,
-    pub(crate) stdout: io::BufReader<ChildStdout>,
-    #[allow(unused)]
-    pub(crate) cfg: Cfg,
-    pub(crate) last_shelltype: Option<ShellType>,
-    pub(crate) child: Child,
-    pub(crate) need_drop: bool
+    stdin: ChildStdin,
+    stdout: io::BufReader<ChildStdout>,
+    cfg: Cfg,
+    last_shelltype: Option<ShellType>,
+    child: Child,
+    need_drop: bool,
+    device: Option<String>,
 }
 
 bitflags! {
@@ -60,15 +59,15 @@ bitflags! {
 
 pub struct GdbCfg {
     flags: GdbConfigFlags,
-    port: u16
+    port: u16,
 }
 
 impl Default for GdbCfg {
     fn default() -> Self {
         Self {
             flags: GdbConfigFlags::DEFAULT,
-            port: 2000
-        } 
+            port: 2000,
+        }
     }
 }
 
@@ -90,6 +89,18 @@ impl GdbCfg {
 }
 
 impl MspDebug {
+    pub(crate) fn new(child: Child, stdin: ChildStdin, stdout: ChildStdout, cfg: Cfg) -> Self {
+        Self {
+            stdin,
+            stdout: io::BufReader::new(stdout),
+            cfg,
+            last_shelltype: None,
+            child,
+            need_drop: false,
+            device: None,
+        }
+    }
+
     fn get_line<'a>(&mut self, line: &'a mut String) -> Result<OutputType<'a>, Error> {
         loop {
             self.stdout.read_line(line).map_err(Error::ReadError)?;
@@ -174,6 +185,9 @@ impl MspDebug {
                         return Err(Error::CommsError(e.into()));
                     }
                 },
+                OutputType::Normal(n) if n.starts_with("Device: ") && self.device.is_none() => {
+                    self.device = Some(n[8..].trim_end().to_owned());
+                }
                 _ => {}
             }
 
@@ -200,13 +214,13 @@ impl MspDebug {
     }
 
     /** Run `mspdebug` in `gdb` server mode and spawn a `msp430-elf-gdb` session.
-    
+
     Shell equivalent:
 
     ```ignore
     set -m && { mspdebug [driver] gdb < /dev/null > /dev/null 2> /dev/null & } && msp430-elf-gdb -q -ex "target remote localhost:2000" [..] -ex "monitor reset" /path/to/elf
     ```
-     
+
     Powershell equivalent:
 
     ```ignore
@@ -249,7 +263,11 @@ impl MspDebug {
 
         let erase_infomem_str: String;
         if cfg.flags.contains(GdbConfigFlags::ERASE_INFOMEM) {
-            erase_infomem_str = format!("monitor erase segrange {}", unimplemented!());
+            let device = self.device.clone().ok_or(Error::NoDevice)?;
+            let (origin, mut length, sector_size) = INFOMEM_MAP.get(&device).cloned().flatten().ok_or(Error::UnknownDevice(device))?;
+
+            length -= sector_size; // Sector A, the last sector, may contain calibration info.
+            erase_infomem_str = format!("monitor erase segrange {} {} {}", origin, length, sector_size);
             args.extend(["-ex", &erase_infomem_str]);
         }
 
@@ -267,8 +285,7 @@ impl MspDebug {
 
         self.need_drop = false;
         // When gdb exits, mspdebug will too.
-        let exit = gdb.wait()
-            .map_err(|e| Error::GdbError(e))?;
+        let exit = gdb.wait().map_err(|e| Error::GdbError(e))?;
 
         Ok(exit)
     }
@@ -289,7 +306,6 @@ impl io::Write for MspDebug {
         self.stdin.flush()
     }
 }
-
 
 impl Drop for MspDebug {
     fn drop(&mut self) {

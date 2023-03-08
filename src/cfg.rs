@@ -1,5 +1,4 @@
 use std::convert::AsRef;
-use std::io;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
@@ -95,20 +94,12 @@ impl Cfg {
             .stdin
             .take()
             .ok_or(Error::StreamError("stdin"))?;
-        let stdout = io::BufReader::new(
+        let stdout = 
             child
                 .stdout
                 .take()
-                .ok_or(Error::StreamError("stdout"))?,
-        );
+                .ok_or(Error::StreamError("stdout"))?;
 
-        Ok(MspDebug {
-            stdin,
-            stdout,
-            cfg: self,
-            last_shelltype: None,
-            child,
-            need_drop: false
-        })
+        Ok(MspDebug::new(child, stdin, stdout, self))
     }
 }

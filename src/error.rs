@@ -16,7 +16,9 @@ pub enum Error {
     UnexpectedShellMessage(String),
     CommsError(String),
     CtrlCError(ctrlc::Error),
-    GdbError(io::Error)
+    GdbError(io::Error),
+    NoDevice,
+    UnknownDevice(String),
 }
 
 impl fmt::Display for Error {
@@ -49,6 +51,12 @@ impl fmt::Display for Error {
             Error::GdbError(e) => {
                 write!(f, "child debugger exited unexpectedly {}", e)
             }
+            Error::NoDevice => {
+                write!(f, "device not known either by mspdebug or this crate")
+            }
+            Error::UnknownDevice(d) => {
+                write!(f, "device known by mspdebug but not this crate, got {}", d)
+            }
         }
     }
 }
@@ -66,7 +74,9 @@ impl error::Error for Error {
             | Error::StreamError(_)
             | Error::UnexpectedSigil(_)
             | Error::UnexpectedShellMessage(_)
-            | Error::CommsError(_) => None,
+            | Error::CommsError(_)
+            | Error::NoDevice
+            | Error::UnknownDevice(_) => None,
             
         }
     }
