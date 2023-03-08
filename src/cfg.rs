@@ -106,7 +106,9 @@ impl Cfg {
             stdin,
             stdout,
             cfg: self,
-            last_shelltype: None
+            last_shelltype: None,
+            child,
+            need_drop: false
         })
     }
 }

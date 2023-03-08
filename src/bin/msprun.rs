@@ -53,6 +53,7 @@ fn main() -> Result<()> {
                 (_, _) => GdbCfg::default()
             };
             msp.gdb(filename, cfg)?;
+            std::thread::sleep(std::time::Duration::from_millis(5000));
         }
     }
 

@@ -1,6 +1,7 @@
 use std::io::{self, BufRead};
 use std::path::PathBuf;
-use std::process::{ChildStdin, ChildStdout, Command, ExitStatus};
+use std::process::{Child, ChildStdin, ChildStdout, Command, ExitStatus};
+use std::thread;
 
 use io::Write as _;
 
@@ -39,6 +40,8 @@ pub struct MspDebug {
     #[allow(unused)]
     pub(crate) cfg: Cfg,
     pub(crate) last_shelltype: Option<ShellType>,
+    pub(crate) child: Child,
+    pub(crate) need_drop: bool
 }
 
 bitflags! {
@@ -197,11 +200,17 @@ impl MspDebug {
     }
 
     /** Run `mspdebug` in `gdb` server mode and spawn a `msp430-elf-gdb` session.
+    
+    Shell equivalent:
+
+    ```ignore
+    set -m && { mspdebug [driver] gdb < /dev/null > /dev/null 2> /dev/null & } && msp430-elf-gdb -q -ex "target remote localhost:2000" [..] -ex "monitor reset" /path/to/elf
+    ```
      
     Powershell equivalent:
 
     ```ignore
-    Start-Job { $null | mspdebug -q --embedded [driver] gdb > $null } > $null;  msp430-elf-gdb -q -ex "target remote localhost:2000" -ex "monitor erase" -ex "load" -ex "monitor reset" /path/to/elf
+    Start-Job { $null | mspdebug -q --embedded [driver] gdb > $null } > $null; msp430-elf-gdb -q -ex "target remote localhost:2000" [..] -ex "monitor reset" /path/to/elf
     ```
     */
     pub fn gdb<F>(mut self, filename: F, cfg: GdbCfg) -> Result<ExitStatus, Error>
@@ -219,6 +228,11 @@ impl MspDebug {
         write!(self, ":gdb {}\n", cfg.port).map_err(|e| Error::WriteError(e))?;
         self.wait_for_busy()?;
 
+        // FIXME: Between here and gdb invocation, if this function panics,
+        // mspdebug will not exit by itself. Figure out why.
+        // Might be a small race here too (between wait_for_busy returning and
+        // need_drop being set)?
+        self.need_drop = true;
         let fn_string = filename.to_string_lossy();
         let mut args = Vec::new();
 
@@ -246,11 +260,14 @@ impl MspDebug {
         args.extend(["-ex", "monitor reset"]);
         args.push(&fn_string);
 
-        let exit = Command::new("msp430-elf-gdb")
+        let mut gdb = Command::new("msp430-elf-gdb")
             .args(&args)
             .spawn()
-            .map_err(|e| Error::SpawnError(e))?
-            .wait()
+            .map_err(|e| Error::SpawnError(e))?;
+
+        self.need_drop = false;
+        // When gdb exits, mspdebug will too.
+        let exit = gdb.wait()
             .map_err(|e| Error::GdbError(e))?;
 
         Ok(exit)
@@ -270,5 +287,14 @@ impl io::Write for MspDebug {
 
     fn flush(&mut self) -> io::Result<()> {
         self.stdin.flush()
+    }
+}
+
+
+impl Drop for MspDebug {
+    fn drop(&mut self) {
+        if self.need_drop {
+            self.child.kill().unwrap()
+        }
     }
 }
