@@ -41,7 +41,7 @@ fn main() -> Result<()> {
             msp.program(filename)?;
         },
         Cmd::Gdb { filename } => {
-            let msp = cfg.driver(args.driver).run()?;
+            let msp = cfg.driver(args.driver).group(true).run()?;
             msp.gdb(filename)?;
         }
     }

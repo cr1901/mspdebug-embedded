@@ -7,6 +7,8 @@ use ctrlc;
 #[derive(Debug)]
 pub enum Error {
     SpawnError(io::Error),
+    ExpectedProcessGroup,
+    ExpectedNoProcessGroup,
     StreamError(&'static str),
     ReadError(io::Error),
     WriteError(io::Error),
@@ -21,6 +23,8 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Error::SpawnError(_) => write!(f, "error spawning mspdebug"),
+            Error::ExpectedProcessGroup => write!(f, "expected child mspdebug to be in a separate process group, but it wasn't"),
+            Error::ExpectedNoProcessGroup => write!(f, "expected child mspdebug to be in same process group as parent, found separate"),
             Error::StreamError(stream) => {
                 write!(f, "could not open mspdebug stream {}", stream)
             }
@@ -57,7 +61,9 @@ impl error::Error for Error {
             | Error::WriteError(io)
             | Error::GdbError(io) => Some(io),
             Error::CtrlCError(e) => Some(e),
-            Error::StreamError(_)
+            Error::ExpectedProcessGroup
+            | Error::ExpectedNoProcessGroup
+            | Error::StreamError(_)
             | Error::UnexpectedSigil(_)
             | Error::UnexpectedShellMessage(_)
             | Error::CommsError(_) => None,

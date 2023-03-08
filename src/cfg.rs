@@ -29,6 +29,7 @@ pub struct Cfg {
     binary: PathBuf,
     driver: TargetDriver,
     quiet: bool,
+    pub(crate) group: bool,
 }
 
 impl Cfg {
@@ -37,6 +38,7 @@ impl Cfg {
             binary: "mspdebug".into(),
             driver: TargetDriver::Sim,
             quiet: true,
+            group: false
         }
     }
 
@@ -47,6 +49,10 @@ impl Cfg {
 
     pub fn driver(self, driver: TargetDriver) -> Cfg {
         Cfg { driver, ..self }
+    }
+
+    pub fn group(self, group: bool) -> Cfg {
+        Cfg { group, ..self }
     }
 
     // Not part of public API for now. For testing.
@@ -64,20 +70,26 @@ impl Cfg {
             cmd.arg("-q");
         }
 
-        let mut child_cfg = cmd
+        let child_cfg = cmd
             .stderr(Stdio::null())
             .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .group();
+            .stdout(Stdio::piped());
 
-        // Process groups and job objects are separate on Windows, but might
-        // as well use the command_group crate to abstract-away *nix.
-        #[cfg(windows)]
-        child_cfg.creation_flags(CREATE_NEW_PROCESS_GROUP);
+        let mut child = if self.group {
+            let mut child_group_cfg = child_cfg.group();
 
-        let mut child = child_cfg.spawn()
-            .map_err(Error::SpawnError)?
-            .into_inner();
+            // Process groups and job objects are separate on Windows, but might
+            // as well use the command_group crate to abstract-away *nix.
+            #[cfg(windows)]
+            child_group_cfg.creation_flags(CREATE_NEW_PROCESS_GROUP);
+
+            child_group_cfg.spawn()
+                           .map_err(Error::SpawnError)?
+                           .into_inner()
+        } else {
+            child_cfg.spawn()
+                     .map_err(Error::SpawnError)?
+        };
 
         let stdin = child
             .stdin

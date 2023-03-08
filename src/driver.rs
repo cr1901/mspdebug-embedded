@@ -135,6 +135,10 @@ impl MspDebug {
     where
         F: Into<PathBuf>,
     {
+        if self.cfg.group {
+            return Err(Error::ExpectedNoProcessGroup);
+        }
+
         let filename = filename.into();
 
         self.wait_for_ready()?;
@@ -150,13 +154,17 @@ impl MspDebug {
     Powershell equivalent:
 
     ```ignore
-    { $null | mspdebug -q --embedded [driver] gdb > $null } > $null;  msp430-elf-gdb -q -ex "target remote localhost:2000" -ex "monitor erase" -ex "load" -ex "monitor reset" /path/to/elf
+    Start-Job { $null | mspdebug -q --embedded [driver] gdb > $null } > $null;  msp430-elf-gdb -q -ex "target remote localhost:2000" -ex "monitor erase" -ex "load" -ex "monitor reset" /path/to/elf
     ```
     */
     pub fn gdb<F>(mut self, filename: F) -> Result<ExitStatus, Error>
     where
         F: Into<PathBuf>,
     {
+        if !self.cfg.group {
+            return Err(Error::ExpectedProcessGroup);
+        }
+
         let filename = filename.into();
 
         ctrlc::set_handler(move || {}).map_err(|e| Error::CtrlCError(e))?;
