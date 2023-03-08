@@ -3,6 +3,7 @@ mod driver;
 mod error;
 
 pub use cfg::{Cfg, TargetDriver};
+pub use driver::GdbCfg;
 pub(crate) use driver::MspDebug;
 pub use error::Error;
 

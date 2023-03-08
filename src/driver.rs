@@ -4,6 +4,8 @@ use std::process::{ChildStdin, ChildStdout, Command, ExitStatus};
 
 use io::Write as _;
 
+use bitflags::bitflags;
+
 use super::{Cfg, Error};
 
 enum OutputType<'a> {
@@ -37,6 +39,51 @@ pub struct MspDebug {
     #[allow(unused)]
     pub(crate) cfg: Cfg,
     pub(crate) last_shelltype: Option<ShellType>,
+}
+
+bitflags! {
+    struct GdbConfigFlags: u32 {
+        const QUIET = 1;
+        const RESET = 1 << 1;
+        const ERASE = 1 << 2;
+        const ERASE_INFOMEM = 1 << 3;
+        const LOAD = 1 << 4;
+
+        const ERASE_AND_LOAD = Self::ERASE.bits | Self::LOAD.bits;
+        const ERASE_ALL_AND_LOAD = Self::ERASE.bits | Self::ERASE_INFOMEM.bits | Self::LOAD.bits;
+        const DEFAULT = Self::QUIET.bits | Self::RESET.bits;
+    }
+}
+
+pub struct GdbCfg {
+    flags: GdbConfigFlags,
+    port: u16
+}
+
+impl Default for GdbCfg {
+    fn default() -> Self {
+        Self {
+            flags: GdbConfigFlags::DEFAULT,
+            port: 2000
+        } 
+    }
+}
+
+impl GdbCfg {
+    pub fn erase_and_load(mut self) -> Self {
+        self.flags |= GdbConfigFlags::ERASE_AND_LOAD;
+        self
+    }
+
+    pub fn erase_all_and_load(mut self) -> Self {
+        self.flags |= GdbConfigFlags::ERASE_ALL_AND_LOAD;
+        self
+    }
+
+    pub fn set_port(mut self, port: u16) -> Self {
+        self.port = port;
+        self
+    }
 }
 
 impl MspDebug {
@@ -157,7 +204,7 @@ impl MspDebug {
     Start-Job { $null | mspdebug -q --embedded [driver] gdb > $null } > $null;  msp430-elf-gdb -q -ex "target remote localhost:2000" -ex "monitor erase" -ex "load" -ex "monitor reset" /path/to/elf
     ```
     */
-    pub fn gdb<F>(mut self, filename: F) -> Result<ExitStatus, Error>
+    pub fn gdb<F>(mut self, filename: F, cfg: GdbCfg) -> Result<ExitStatus, Error>
     where
         F: Into<PathBuf>,
     {
@@ -169,24 +216,35 @@ impl MspDebug {
 
         ctrlc::set_handler(move || {}).map_err(|e| Error::CtrlCError(e))?;
         self.wait_for_ready()?;
-        write!(self, ":gdb\n").map_err(|e| Error::WriteError(e))?;
+        write!(self, ":gdb {}\n", cfg.port).map_err(|e| Error::WriteError(e))?;
         self.wait_for_busy()?;
 
         let fn_string = filename.to_string_lossy();
-        let args = vec![
-            "-q",
-            "-ex",
-            "target remote localhost:2000",
-            "-ex",
-            "monitor erase",
-            "-ex",
-            "monitor erase segrange 0x1000 192 64",
-            "-ex",
-            "load",
-            "-ex",
-            "monitor reset",
-            &fn_string,
-        ];
+        let mut args = Vec::new();
+
+        if cfg.flags.contains(GdbConfigFlags::QUIET) {
+            args.push("-q");
+        }
+
+        let target_str = format!("target remote localhost:{}", cfg.port);
+        args.extend(["-ex", &target_str]);
+
+        if cfg.flags.contains(GdbConfigFlags::ERASE) {
+            args.extend(["-ex", "monitor erase"]);
+        }
+
+        let erase_infomem_str: String;
+        if cfg.flags.contains(GdbConfigFlags::ERASE_INFOMEM) {
+            erase_infomem_str = format!("monitor erase segrange {}", unimplemented!());
+            args.extend(["-ex", &erase_infomem_str]);
+        }
+
+        if cfg.flags.contains(GdbConfigFlags::LOAD) {
+            args.extend(["-ex", "load"]);
+        }
+
+        args.extend(["-ex", "monitor reset"]);
+        args.push(&fn_string);
 
         let exit = Command::new("msp430-elf-gdb")
             .args(&args)
