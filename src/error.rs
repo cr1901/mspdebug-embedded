@@ -3,12 +3,14 @@ use std::fmt;
 use std::io;
 
 use ctrlc;
+use elf::parse::ParseError;
 
 #[derive(Debug)]
 pub enum Error {
     SpawnError(io::Error),
     ExpectedProcessGroup,
     ExpectedNoProcessGroup,
+    BadInput(BadInputReason),
     StreamError(&'static str),
     ReadError(io::Error),
     WriteError(io::Error),
@@ -33,6 +35,7 @@ impl fmt::Display for Error {
                 f,
                 "expected child mspdebug to be in same process group as parent, found separate"
             ),
+            Error::BadInput(_) => write!(f, "the file to program onto msp430 was not found or corrupt"),
             Error::StreamError(stream) => {
                 write!(f, "could not open mspdebug stream {}", stream)
             }
@@ -79,6 +82,7 @@ impl error::Error for Error {
             | Error::WriteError(io)
             | Error::GdbError(io) => Some(io),
             Error::CtrlCError(e) => Some(e),
+            Error::BadInput(r) => Some(r),
             Error::ExpectedProcessGroup
             | Error::ExpectedNoProcessGroup
             | Error::StreamError(_)
@@ -87,6 +91,30 @@ impl error::Error for Error {
             | Error::CommsError(_)
             | Error::NoDevice
             | Error::UnknownDevice(_) => None,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum BadInputReason {
+    IoError(io::Error),
+    ElfParseError(ParseError)
+}
+
+impl fmt::Display for BadInputReason {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BadInputReason::IoError(_) => write!(f, "error opening or reading input file"),
+            BadInputReason::ElfParseError(_) => write!(f, "input file was not a valid ELF file")
+        }
+    }
+}
+
+impl error::Error for BadInputReason {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        match self {
+            BadInputReason::IoError(io) => Some(io),
+            BadInputReason::ElfParseError(elf) => Some(elf)
         }
     }
 }

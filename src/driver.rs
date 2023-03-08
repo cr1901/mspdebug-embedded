@@ -1,10 +1,16 @@
 use std::io::{self, BufRead};
+use std::fs::File;
 use std::path::PathBuf;
 use std::process::{Child, ChildStdin, ChildStdout, Command, ExitStatus};
 
+use elf::endian::LittleEndian;
 use io::Write as _;
 
 use bitflags::bitflags;
+use elf::ElfStream;
+use elf::section::SectionHeader;
+
+use crate::error::BadInputReason;
 
 use super::{infomem::INFOMEM_MAP, Cfg, Error};
 
@@ -204,6 +210,28 @@ impl MspDebug {
         }
 
         let filename = filename.into();
+        let fp = File::open(&filename).map_err(|e| Error::BadInput(BadInputReason::IoError(e)))?;
+        let elf: ElfStream<LittleEndian, _> = ElfStream::open_stream(fp).map_err(|p| Error::BadInput(BadInputReason::ElfParseError(p)))?;
+
+        // Device info will be printed out by mspdebug before wait_for_ready() returns.
+        self.wait_for_ready()?;
+        let (origin, mut length, sector_size) = self.infomem_map()?;
+        let im_range = origin.into()..(origin + length).into();
+
+        for hdr in elf.section_headers() {
+            if im_range.contains(&hdr.sh_addr) {
+                length -= sector_size;
+
+                self.wait_for_ready()?;
+                write!(self, ":erase segrange {} {} {}\n", origin, length, sector_size).map_err(|e| Error::WriteError(e))?;
+                self.wait_for_busy()?;
+                self.wait_for_ready()?;
+
+                break;
+            }
+        }
+
+        drop(elf);
 
         self.wait_for_ready()?;
         write!(self, ":prog {}\n", filename.display()).map_err(|e| Error::WriteError(e))?;
@@ -263,12 +291,7 @@ impl MspDebug {
 
         let erase_infomem_str: String;
         if cfg.flags.contains(GdbConfigFlags::ERASE_INFOMEM) {
-            let device = self.device.clone().ok_or(Error::NoDevice)?;
-            let (origin, mut length, sector_size) = INFOMEM_MAP
-                .get(&device)
-                .cloned()
-                .flatten()
-                .ok_or(Error::UnknownDevice(device))?;
+            let (origin, mut length, sector_size) = self.infomem_map()?;
 
             length -= sector_size; // Sector A, the last sector, may contain calibration info.
             erase_infomem_str = format!(
@@ -295,6 +318,17 @@ impl MspDebug {
         let exit = gdb.wait().map_err(|e| Error::GdbError(e))?;
 
         Ok(exit)
+    }
+
+    fn infomem_map(&self) -> Result<(u16, u16, u16), Error> {
+        let device = self.device.clone().ok_or(Error::NoDevice)?;
+        let info = INFOMEM_MAP
+                .get(device.as_ref())
+                .cloned()
+                .flatten()
+                .ok_or(Error::UnknownDevice(device.to_string()))?;
+
+        Ok(info)
     }
 }
 
