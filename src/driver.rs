@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::io::{self, BufRead};
-use std::path::PathBuf;
+use std::path::Path;
 use std::process::{Child, ChildStdin, ChildStdout, Command, ExitStatus};
 
 use elf::endian::LittleEndian;
@@ -78,11 +78,6 @@ impl Default for GdbCfg {
 
 impl GdbCfg {
     pub fn erase_and_load(mut self) -> Self {
-        self.flags |= GdbConfigFlags::ERASE_AND_LOAD;
-        self
-    }
-
-    pub fn erase_all_and_load(mut self) -> Self {
         self.flags |= GdbConfigFlags::ERASE_ALL_AND_LOAD;
         self
     }
@@ -202,44 +197,27 @@ impl MspDebug {
 
     pub fn program<F>(&mut self, filename: F) -> Result<(), Error>
     where
-        F: Into<PathBuf>,
+        F: AsRef<Path>,
     {
         if self.cfg.group {
             return Err(Error::ExpectedNoProcessGroup);
         }
 
-        let filename = filename.into();
-        let fp = File::open(&filename).map_err(|e| Error::BadInput(BadInputReason::IoError(e)))?;
-        let elf: ElfStream<LittleEndian, _> = ElfStream::open_stream(fp)
-            .map_err(|p| Error::BadInput(BadInputReason::ElfParseError(p)))?;
-
-        // Device info will be printed out by mspdebug before wait_for_ready() returns.
-        self.wait_for_ready()?;
-        let (origin, mut length, sector_size) = self.infomem_map()?;
-        let im_range = origin.into()..(origin + length).into();
-
-        for hdr in elf.section_headers() {
-            if im_range.contains(&hdr.sh_addr) {
-                length -= sector_size;
-
-                self.wait_for_ready()?;
-                write!(
-                    self,
-                    ":erase segrange {} {} {}\n",
-                    origin, length, sector_size
-                )
-                .map_err(|e| Error::WriteError(e))?;
-                self.wait_for_busy()?;
-                self.wait_for_ready()?;
-
-                break;
-            }
+        let elf = Self::validate_elf(&filename)?;
+        if let Some((origin, length, sector_size)) = self.validate_infomem(elf)? {
+            self.wait_for_ready()?;
+            write!(
+                self,
+                ":erase segrange {} {} {}\n",
+                origin, length, sector_size
+            )
+            .map_err(|e| Error::WriteError(e))?;
+            self.wait_for_busy()?;
+            self.wait_for_ready()?;
         }
 
-        drop(elf);
-
         self.wait_for_ready()?;
-        write!(self, ":prog {}\n", filename.display()).map_err(|e| Error::WriteError(e))?;
+        write!(self, ":prog {}\n", filename.as_ref().display()).map_err(|e| Error::WriteError(e))?;
         self.wait_for_busy()?;
         self.wait_for_ready()?;
 
@@ -262,13 +240,14 @@ impl MspDebug {
     */
     pub fn gdb<F>(mut self, filename: F, cfg: GdbCfg) -> Result<ExitStatus, Error>
     where
-        F: Into<PathBuf>,
+        F: AsRef<Path>,
     {
         if !self.cfg.group {
             return Err(Error::ExpectedProcessGroup);
         }
 
-        let filename = filename.into();
+        let elf = Self::validate_elf(&filename)?;
+        let im = self.validate_infomem(elf)?;
 
         ctrlc::set_handler(move || {}).map_err(|e| Error::CtrlCError(e))?;
         self.wait_for_ready()?;
@@ -280,7 +259,7 @@ impl MspDebug {
         // Might be a small race here too (between wait_for_busy returning and
         // need_drop being set)?
         self.need_drop = true;
-        let fn_string = filename.to_string_lossy();
+        let fn_string = filename.as_ref().to_string_lossy();
         let mut args = Vec::new();
 
         if cfg.flags.contains(GdbConfigFlags::QUIET) {
@@ -295,15 +274,13 @@ impl MspDebug {
         }
 
         let erase_infomem_str: String;
-        if cfg.flags.contains(GdbConfigFlags::ERASE_INFOMEM) {
-            let (origin, mut length, sector_size) = self.infomem_map()?;
-
-            length -= sector_size; // Sector A, the last sector, may contain calibration info.
+        if cfg.flags.contains(GdbConfigFlags::ERASE_INFOMEM) && im.is_some() {
+            let (origin, length, sector_size) = im.unwrap();
             erase_infomem_str = format!(
                 "monitor erase segrange {} {} {}",
                 origin, length, sector_size
             );
-            args.extend(["-ex", &erase_infomem_str]);
+            args.extend(["-ex", &erase_infomem_str])
         }
 
         if cfg.flags.contains(GdbConfigFlags::LOAD) {
@@ -325,15 +302,37 @@ impl MspDebug {
         Ok(exit)
     }
 
-    fn infomem_map(&self) -> Result<(u16, u16, u16), Error> {
+    fn validate_elf<F>(filename: F) -> Result<ElfStream<LittleEndian, File>, Error> where F: AsRef<Path> {
+        let fp = File::open(&filename).map_err(|e| Error::BadInput(BadInputReason::IoError(e)))?;
+        let elf = ElfStream::open_stream(fp)
+            .map_err(|p| Error::BadInput(BadInputReason::ElfParseError(p)))?;
+
+        Ok(elf)
+    }
+
+    fn validate_infomem(&mut self, elf: ElfStream<LittleEndian, File>) -> Result<Option<(u16, u16, u16)>, Error> {
+        // In case no "wait_for_ready" was run before this point, device info will
+        // be printed out by mspdebug/parsed by us before wait_for_ready() returns.
+        self.wait_for_ready()?;
         let device = self.device.clone().ok_or(Error::NoDevice)?;
-        let info = INFOMEM_MAP
+        let (origin, mut length, sector_size) = INFOMEM_MAP
             .get(device.as_ref())
             .cloned()
             .flatten()
             .ok_or(Error::UnknownDevice(device.to_string()))?;
+    
+        let im_range = origin.into()..(origin + length).into();
 
-        Ok(info)
+        for hdr in elf.section_headers() {
+            if im_range.contains(&hdr.sh_addr) {
+                length -= sector_size; /* Sector A, the last sector, may contain
+                                        calibration info. Don't overwrite it. */
+
+                return Ok(Some((origin, length, sector_size)));
+            }
+        }
+
+        Ok(None)
     }
 }
 

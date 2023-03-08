@@ -22,10 +22,8 @@ pub enum Cmd {
     /// Use mspdebug to create a `gdb` server; spawn an interactive `msp430-elf-gdb` session.
     Gdb {
         filename: PathBuf,
-        #[arg(short = 'e')]
-        erase: bool,
-        #[arg(short = 'x')]
-        erase_extra: bool,
+        #[arg(short = 'r')]
+        reset_only: bool,
     },
 }
 
@@ -44,17 +42,17 @@ fn main() -> Result<()> {
         }
         Cmd::Gdb {
             filename,
-            erase,
-            erase_extra,
+            reset_only
         } => {
             let msp = cfg.driver(args.driver).group(true).run()?;
 
-            let cfg = match (erase, erase_extra) {
-                (true, false) => GdbCfg::default().erase_and_load(),
-                (_, true) => GdbCfg::default().erase_all_and_load(),
-                (_, _) => GdbCfg::default(),
+            let gdb = if reset_only {
+                GdbCfg::default()
+            } else {
+                GdbCfg::default().erase_and_load()
             };
-            msp.gdb(filename, cfg)?;
+
+            msp.gdb(filename, gdb)?;
         }
     }
 
