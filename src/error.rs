@@ -35,7 +35,10 @@ impl fmt::Display for Error {
                 f,
                 "expected child mspdebug to be in same process group as parent, found separate"
             ),
-            Error::BadInput(_) => write!(f, "the file to program onto msp430 was not found or corrupt"),
+            Error::BadInput(_) => write!(
+                f,
+                "the file to program onto msp430 was not found or corrupt"
+            ),
             Error::StreamError(stream) => {
                 write!(f, "could not open mspdebug stream {}", stream)
             }
@@ -98,14 +101,14 @@ impl error::Error for Error {
 #[derive(Debug)]
 pub enum BadInputReason {
     IoError(io::Error),
-    ElfParseError(ParseError)
+    ElfParseError(ParseError),
 }
 
 impl fmt::Display for BadInputReason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             BadInputReason::IoError(_) => write!(f, "error opening or reading input file"),
-            BadInputReason::ElfParseError(_) => write!(f, "input file was not a valid ELF file")
+            BadInputReason::ElfParseError(_) => write!(f, "input file was not a valid ELF file"),
         }
     }
 }
@@ -114,7 +117,7 @@ impl error::Error for BadInputReason {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match self {
             BadInputReason::IoError(io) => Some(io),
-            BadInputReason::ElfParseError(elf) => Some(elf)
+            BadInputReason::ElfParseError(elf) => Some(elf),
         }
     }
 }

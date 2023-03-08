@@ -1,5 +1,5 @@
-use std::io::{self, BufRead};
 use std::fs::File;
+use std::io::{self, BufRead};
 use std::path::PathBuf;
 use std::process::{Child, ChildStdin, ChildStdout, Command, ExitStatus};
 
@@ -8,7 +8,6 @@ use io::Write as _;
 
 use bitflags::bitflags;
 use elf::ElfStream;
-use elf::section::SectionHeader;
 
 use crate::error::BadInputReason;
 
@@ -211,7 +210,8 @@ impl MspDebug {
 
         let filename = filename.into();
         let fp = File::open(&filename).map_err(|e| Error::BadInput(BadInputReason::IoError(e)))?;
-        let elf: ElfStream<LittleEndian, _> = ElfStream::open_stream(fp).map_err(|p| Error::BadInput(BadInputReason::ElfParseError(p)))?;
+        let elf: ElfStream<LittleEndian, _> = ElfStream::open_stream(fp)
+            .map_err(|p| Error::BadInput(BadInputReason::ElfParseError(p)))?;
 
         // Device info will be printed out by mspdebug before wait_for_ready() returns.
         self.wait_for_ready()?;
@@ -223,7 +223,12 @@ impl MspDebug {
                 length -= sector_size;
 
                 self.wait_for_ready()?;
-                write!(self, ":erase segrange {} {} {}\n", origin, length, sector_size).map_err(|e| Error::WriteError(e))?;
+                write!(
+                    self,
+                    ":erase segrange {} {} {}\n",
+                    origin, length, sector_size
+                )
+                .map_err(|e| Error::WriteError(e))?;
                 self.wait_for_busy()?;
                 self.wait_for_ready()?;
 
@@ -323,10 +328,10 @@ impl MspDebug {
     fn infomem_map(&self) -> Result<(u16, u16, u16), Error> {
         let device = self.device.clone().ok_or(Error::NoDevice)?;
         let info = INFOMEM_MAP
-                .get(device.as_ref())
-                .cloned()
-                .flatten()
-                .ok_or(Error::UnknownDevice(device.to_string()))?;
+            .get(device.as_ref())
+            .cloned()
+            .flatten()
+            .ok_or(Error::UnknownDevice(device.to_string()))?;
 
         Ok(info)
     }
