@@ -16,12 +16,66 @@ use super::{Error, MspDebug};
 #[derive(Clone, Copy, AsRefStr)]
 #[cfg_attr(feature = "msprun", derive(ValueEnum))]
 pub enum TargetDriver {
+    /// eZ430-RF2500 devices (USB)
     #[strum(serialize = "rf2500")]
     Rf2500,
+    /// Olimex MSP-JTAG-TINY
+    #[strum(serialize = "olimex")]
+    Olimex,
+    /// Olimex MSP-JTAG-TINY (V1)
+    #[strum(serialize = "olimex-v1")]
+    Olimexv1,
+    /// Olimex MSP-JTAG-ISO
+    #[strum(serialize = "olimex-iso")]
+    OlimexIso,
+    /// Olimex MSP430-JTAG-ISO-MK2
+    #[strum(serialize = "olimex-iso-mk2")]
+    OlimexIsoMk2,
+    /// Simulation mode (standard CPU)
     #[strum(serialize = "sim")]
     Sim,
+    /// CPUX Simulation mode
+    #[strum(serialize = "simx")]
+    SimX,
+    /// TI FET430UIF and compatible devices (e.g. eZ430)
+    #[strum(serialize = "uif")]
+    Uif,
+    /// TI FET430UIF bootloader
+    #[strum(serialize = "uif-bsl")]
+    UifBsl,
+    /// TI generic flash-based bootloader via RS-232
+    #[strum(serialize = "flash-bsl")]
+    FlashBsl,
+    /// GDB client mode
+    #[strum(serialize = "gdbc")]
+    GdbClient,
+    /// TI MSP430 library
     #[strum(serialize = "tilib")]
     Tilib,
+    /// GoodFET MSP430 JTAG
+    #[strum(serialize = "goodfet")]
+    GoodFet,
+    /// Parallel Port JTAG
+    #[strum(serialize = "pif")]
+    Pif,
+    /// /sys/class/gpio direct connect
+    #[strum(serialize = "gpio")]
+    Gpio,
+    /// Loadable USB BSL driver (USB 5xx/6xx).
+    #[strum(serialize = "load-bsl")]
+    LoadBsl,
+    /// Texas Instruments eZ-FET
+    #[strum(serialize = "ezfet")]
+    EzFet,
+    /// ROM bootstrap loader
+    #[strum(serialize = "rom-bsl")]
+    RomBsl,
+    /// Bus Pirate JTAG, MISO-TDO, MOSI-TDI, CS-TMS, AUX-RESET, CLK-TCK
+    #[strum(serialize = "bus-pirate")]
+    BusPirate,
+    /// MehFET USB JTAG/SBW device
+    #[strum(serialize = "mehfet")]
+    MehFet
 }
 
 pub struct Cfg {
