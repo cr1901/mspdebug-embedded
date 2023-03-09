@@ -28,3 +28,8 @@ serial_test = "1.0.0"
 
 [features]
 msprun = ["dep:clap", "dep:eyre"]
+
+[profile.release]
+codegen-units = 1
+opt-level = "z"
+lto = "fat"
