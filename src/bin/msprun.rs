@@ -59,6 +59,9 @@ pub enum Cmd {
         /// Explicit path to `msp430-elf-gdb` binary (default to PATH)
         #[arg(short = 'b')]
         binary: Option<PathBuf>,
+
+        #[arg(short = 'e')]
+        gdb_init: Vec<String>
     },
 }
 
@@ -79,14 +82,15 @@ fn main() -> Result<()> {
             filename,
             reset_only,
             port,
+            gdb_init,
             ..
         } => {
             let msp = cfg.driver(args.driver).group(true).run()?;
 
             let gdb = if reset_only {
-                GdbCfg::default().set_port(port)
+                GdbCfg::default().set_port(port).extra_cmds(gdb_init)
             } else {
-                GdbCfg::default().erase_and_load().set_port(port)
+                GdbCfg::default().erase_and_load().set_port(port).extra_cmds(gdb_init)
             };
 
             msp.gdb(filename, gdb)?;

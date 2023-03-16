@@ -65,6 +65,7 @@ bitflags! {
 pub struct GdbCfg {
     flags: GdbConfigFlags,
     port: u16,
+    extra_args: Vec<String>
 }
 
 impl Default for GdbCfg {
@@ -72,6 +73,7 @@ impl Default for GdbCfg {
         Self {
             flags: GdbConfigFlags::DEFAULT,
             port: 2000,
+            extra_args: vec![]
         }
     }
 }
@@ -84,6 +86,11 @@ impl GdbCfg {
 
     pub fn set_port(mut self, port: u16) -> Self {
         self.port = port;
+        self
+    }
+
+    pub fn extra_cmds(mut self, cmds: Vec<String>) -> Self {
+        self.extra_args = cmds;
         self
     }
 }
@@ -288,6 +295,11 @@ impl MspDebug {
         }
 
         args.extend(["-ex", "monitor reset"]);
+
+        for arg in cfg.extra_args.iter() {
+            args.extend(["-ex", arg])
+        }
+
         args.push(&fn_string);
 
         let mut gdb = Command::new("msp430-elf-gdb")
