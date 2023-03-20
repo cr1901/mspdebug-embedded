@@ -75,7 +75,7 @@ pub enum TargetDriver {
     BusPirate,
     /// MehFET USB JTAG/SBW device
     #[strum(serialize = "mehfet")]
-    MehFet
+    MehFet,
 }
 
 pub struct Cfg {

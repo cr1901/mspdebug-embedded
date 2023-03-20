@@ -348,7 +348,7 @@ impl MspDebug {
             for hdr in elf.section_headers() {
                 if im_range.contains(&hdr.sh_addr) {
                     length -= sector_size; /* Sector A, the last sector, may contain
-                                              calibration info. Don't overwrite it. */
+                                           calibration info. Don't overwrite it. */
 
                     return Ok(Some((origin, length, sector_size)));
                 }

@@ -24,7 +24,7 @@ pub enum Cmd {
 
     This command is a wrapper over the `prog` command that is more friendly
     to being passed a file input argument to `cargo run`.
-    
+
     Additionally, this command will check whether the ELF file is using msp430
     Information Memory segments D through B and automatically erase them if
     necessary. Information Memory segment A is untouched due to possibly
@@ -61,7 +61,7 @@ pub enum Cmd {
         binary: Option<PathBuf>,
 
         #[arg(short = 'e')]
-        gdb_init: Vec<String>
+        gdb_init: Vec<String>,
     },
 }
 
@@ -90,7 +90,10 @@ fn main() -> Result<()> {
             let gdb = if reset_only {
                 GdbCfg::default().set_port(port).extra_cmds(gdb_init)
             } else {
-                GdbCfg::default().erase_and_load().set_port(port).extra_cmds(gdb_init)
+                GdbCfg::default()
+                    .erase_and_load()
+                    .set_port(port)
+                    .extra_cmds(gdb_init)
             };
 
             msp.gdb(filename, gdb)?;
