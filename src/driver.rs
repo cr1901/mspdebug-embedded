@@ -10,6 +10,7 @@ use bitflags::bitflags;
 use elf::ElfStream;
 
 use crate::error::BadInputReason;
+use crate::TargetDriver;
 
 use super::{infomem::INFOMEM_MAP, Cfg, Error};
 
@@ -65,7 +66,7 @@ bitflags! {
 pub struct GdbCfg {
     flags: GdbConfigFlags,
     port: u16,
-    extra_args: Vec<String>
+    extra_args: Vec<String>,
 }
 
 impl Default for GdbCfg {
@@ -73,7 +74,7 @@ impl Default for GdbCfg {
         Self {
             flags: GdbConfigFlags::DEFAULT,
             port: 2000,
-            extra_args: vec![]
+            extra_args: vec![],
         }
     }
 }
@@ -224,7 +225,8 @@ impl MspDebug {
         }
 
         self.wait_for_ready()?;
-        write!(self, ":prog {}\n", filename.as_ref().display()).map_err(|e| Error::WriteError(e))?;
+        write!(self, ":prog {}\n", filename.as_ref().display())
+            .map_err(|e| Error::WriteError(e))?;
         self.wait_for_busy()?;
         self.wait_for_ready()?;
 
@@ -314,7 +316,10 @@ impl MspDebug {
         Ok(exit)
     }
 
-    fn validate_elf<F>(filename: F) -> Result<ElfStream<LittleEndian, File>, Error> where F: AsRef<Path> {
+    fn validate_elf<F>(filename: F) -> Result<ElfStream<LittleEndian, File>, Error>
+    where
+        F: AsRef<Path>,
+    {
         let fp = File::open(&filename).map_err(|e| Error::BadInput(BadInputReason::IoError(e)))?;
         let elf = ElfStream::open_stream(fp)
             .map_err(|p| Error::BadInput(BadInputReason::ElfParseError(p)))?;
@@ -322,25 +327,31 @@ impl MspDebug {
         Ok(elf)
     }
 
-    fn validate_infomem(&mut self, elf: ElfStream<LittleEndian, File>) -> Result<Option<(u16, u16, u16)>, Error> {
+    fn validate_infomem(
+        &mut self,
+        elf: ElfStream<LittleEndian, File>,
+    ) -> Result<Option<(u16, u16, u16)>, Error> {
         // In case no "wait_for_ready" was run before this point, device info will
         // be printed out by mspdebug/parsed by us before wait_for_ready() returns.
         self.wait_for_ready()?;
-        let device = self.device.clone().ok_or(Error::NoDevice)?;
-        let (origin, mut length, sector_size) = INFOMEM_MAP
-            .get(device.as_ref())
-            .cloned()
-            .flatten()
-            .ok_or(Error::UnknownDevice(device.to_string()))?;
-    
-        let im_range = origin.into()..(origin + length).into();
+        if self.cfg.driver != TargetDriver::Sim {
+            let device = self.device.clone().ok_or(Error::NoDevice)?;
 
-        for hdr in elf.section_headers() {
-            if im_range.contains(&hdr.sh_addr) {
-                length -= sector_size; /* Sector A, the last sector, may contain
-                                        calibration info. Don't overwrite it. */
+            let (origin, mut length, sector_size) = INFOMEM_MAP
+                .get(device.as_ref())
+                .cloned()
+                .flatten()
+                .ok_or(Error::UnknownDevice(device.to_string()))?;
 
-                return Ok(Some((origin, length, sector_size)));
+            let im_range = origin.into()..(origin + length).into();
+
+            for hdr in elf.section_headers() {
+                if im_range.contains(&hdr.sh_addr) {
+                    length -= sector_size; /* Sector A, the last sector, may contain
+                                              calibration info. Don't overwrite it. */
+
+                    return Ok(Some((origin, length, sector_size)));
+                }
             }
         }
 

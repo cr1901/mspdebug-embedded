@@ -13,7 +13,7 @@ use strum_macros::AsRefStr;
 
 use super::{Error, MspDebug};
 
-#[derive(Clone, Copy, AsRefStr)]
+#[derive(Clone, Copy, AsRefStr, PartialEq)]
 #[cfg_attr(feature = "msprun", derive(ValueEnum))]
 pub enum TargetDriver {
     /// eZ430-RF2500 devices (USB)
@@ -80,7 +80,7 @@ pub enum TargetDriver {
 
 pub struct Cfg {
     binary: PathBuf,
-    driver: TargetDriver,
+    pub(crate) driver: TargetDriver,
     quiet: bool,
     pub(crate) group: bool,
 }
